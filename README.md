@@ -4,21 +4,8 @@
 
 Most ROS 2 developers stop at the application layer: write nodes, leave the DDS defaults alone, and find out about a flaky network the hard way — a robot that "randomly" misses `cmd_vel` messages, or a fleet that takes 30 seconds to notice a new AGV joined the domain. `ros2-dds-pulse` is a single C++ node that watches the DDS layer itself and turns it into dashboards an engineering manager can glance at, not log lines an engineer has to grep.
 
-```
-$ ros2 topic echo /dds/retransmitted_packets
----
-stamp: {sec: 1760000042, nanosec: 0}
-source: self_probe_writer
-rexmit_count: 184        # was 3 a second ago
-rexmit_bytes: 47104
-rexmit_lost_count: 2
-throttle_count: 0
----
-```
-> [CRITICAL] rexmit_count jumped 60x on this domain. Check `net.core.rmem_max`,
-> or you're running too many robots on multicast discovery — see foxglove_layouts/dds_pulse.json.
-
-*(the dashboard panel that reacts to this live is one `tc qdisc add dev lo root netem loss 2%` away — see [Demo: inducing real packet loss](#demo-inducing-real-packet-loss) below.)*
+![The ros2-dds-pulse dashboard open in Foxglove Studio, connected over ws://localhost:8765: live plots for matched heartbeats, retransmits/discards, throughput and period, and discovery time, plus a live discovery-event log](assets/image.png)
+*`foxglove_layouts/dds_pulse.json` open in Foxglove Studio against a running fleet — matched publishers, retransmits/discards, throughput/period, and discovery time, all updating live.*
 
 ---
 
@@ -33,9 +20,7 @@ source install/setup.bash
 ros2 launch dds_metrics_bridge dds_metrics_bridge.launch.py
 ```
 
-Then open [Foxglove Studio](https://foxglove.dev/), connect to **`ws://localhost:8765`** (Foxglove WebSocket), and **Layout → Import from file →** [`foxglove_layouts/dds_pulse.json`](foxglove_layouts/dds_pulse.json). You'll see six live panels — matched publishers, retransmits/packet loss, throughput, discovery time, a live discovery event log, and two Markdown panels that explain what each chart means and what to do about it, built right into the layout file.
-
-That layout file also ships inside the built package itself (`share/dds_metrics_bridge/foxglove_layouts/dds_pulse.json`), so anyone who installs this package always has the dashboard that matches the topics their build actually publishes — it isn't a separate download that can drift out of sync with the code.
+Then open [Foxglove Studio](https://foxglove.dev/), connect to **`ws://localhost:8765`** (Foxglove WebSocket), and **Layout → Import from file →** [`foxglove_layouts/dds_pulse.json`](foxglove_layouts/dds_pulse.json) to get the dashboard above. That layout also ships inside the built package itself (`share/dds_metrics_bridge/foxglove_layouts/dds_pulse.json`), so anyone who installs this package always has the dashboard that matches the topics their build actually publishes — it isn't a separate download that can drift out of sync with the code.
 
 ---
 
@@ -75,6 +60,13 @@ If you *are* running Fast DDS, porting source (1) and (3) is unnecessary — you
 
 `foxglove_bridge` only streams a topic's actual data once some panel subscribes to it — connecting doesn't push your whole ROS graph over the wire. The launch file also sets `topic_whitelist` to `.*dds.*|.*tf.*`, so unrelated (and potentially heavy, e.g. camera/LiDAR) topics never even appear in Foxglove's topic list for this bridge's connection. Tighten or loosen that in [`dds_metrics_bridge.launch.py`](src/dds_metrics_bridge/launch/dds_metrics_bridge.launch.py) for your own project.
 
+### Reading the dashboard
+
+- **Heartbeats** — matched/alive publisher counts per watched ROS topic. A count dropping to 0 while a robot is supposed to be running usually means a DDS discovery or network problem, not a crashed node — check Discovery Events first.
+- **Retransmitted Packets** — `rexmit_count` / `discarded_bytes` from this node's own DDS discovery readers and its synthetic self-probe (see Architecture above). **If this spikes, your network is dropping packets.**
+- **Throughput / Latency** — bytes/sec and inter-arrival period per topic.
+- **Discovery Events** — one row per newly-seen DDS participant or endpoint, with how long it took this bridge to see it. Long tails usually mean multicast/discovery-storm issues on a crowded `ROS_DOMAIN_ID`.
+
 ### Demo: inducing real packet loss
 
 To see the "Retransmitted Packets" panel actually move instead of sitting at zero:
@@ -85,7 +77,19 @@ sudo tc qdisc add dev lo root netem loss 2% delay 50ms 10ms   # induce loss on l
 sudo tc qdisc del dev lo root netem                            # remove it afterwards
 ```
 
-This affects all loopback traffic on the machine for as long as it's active, so scope it to a short demo window.
+This affects all loopback traffic on the machine for as long as it's active, so scope it to a short demo window. With it active you'll see something like:
+
+```
+$ ros2 topic echo /dds/retransmitted_packets
+---
+stamp: {sec: 1760000042, nanosec: 0}
+source: self_probe_writer
+rexmit_count: 184        # was 3 a second ago
+rexmit_bytes: 47104
+rexmit_lost_count: 2
+throttle_count: 0
+---
+```
 
 ---
 
