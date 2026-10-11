@@ -1,0 +1,13 @@
+// Minimal native Cyclone DDS type for the "self-probe" canary topic used by
+// SelfProbe (see include/dds_metrics_bridge/self_probe.hpp). This is a
+// plain Cyclone IDL type, compiled with idlc, deliberately NOT a ROS 2 .msg
+// - the probe lives entirely below the ROS 2 middleware abstraction so its
+// writer/reader entities are ones we create and own directly through the
+// native Cyclone C API, which is the only way to get real dds_get_statistics()
+// counters (Cyclone only reports stats for locally-held entities).
+module dds_metrics_bridge {
+  struct Probe {
+    unsigned long long seq;
+    unsigned long long send_time_ns;
+  };
+};

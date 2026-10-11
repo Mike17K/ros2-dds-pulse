@@ -1,0 +1,134 @@
+{
+  "configById": {
+    "Plot!heartbeats": {
+      "paths": [
+        {
+          "value": "/dds/heartbeats.matched_publisher_count",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "matched publishers"
+        },
+        {
+          "value": "/dds/heartbeats.liveliness_alive_count",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "alive publishers"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240
+    },
+    "Plot!retransmits": {
+      "paths": [
+        {
+          "value": "/dds/retransmitted_packets.rexmit_count",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "rexmit_count"
+        },
+        {
+          "value": "/dds/retransmitted_packets.discarded_bytes",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "discarded_bytes"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240
+    },
+    "Plot!throughput": {
+      "paths": [
+        {
+          "value": "/dds/latency_bytes.throughput_bytes_per_sec",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "throughput (bytes/s)"
+        },
+        {
+          "value": "/dds/latency_bytes.period_mean_ms",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "period (ms)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240
+    },
+    "Plot!discovery_time": {
+      "paths": [
+        {
+          "value": "/dds/discovery_events.time_to_discover_sec",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "time to discover (s)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240
+    },
+    "RawMessages!discovery_log": {
+      "topicPath": "/dds/discovery_events",
+      "diffEnabled": false,
+      "showFullMessageForDiff": false,
+      "expansion": "all"
+    },
+    "Markdown!how_to_read": {
+      "text": "## How to read this dashboard\n\n**Heartbeats** – matched/alive publisher counts per watched ROS topic. A count dropping to 0 while a robot is supposed to be running usually means a DDS discovery or network problem, not a crashed node (check `/dds/discovery_events` first).\n\n**Retransmitted Packets** – `rexmit_count`/`discarded_bytes` from this node's own DDS discovery readers and its synthetic self-probe. **If this graph spikes, your network is dropping packets.** Try:\n- `sudo sysctl -w net.core.rmem_max=2147483647` (socket receive buffer too small for large messages)\n- Switching busy multi-robot domains to a **Discovery Server** / unicast profile instead of multicast\n- `sudo tc qdisc add dev lo root netem loss 2%` to reproduce this on purpose for a demo\n\n**Throughput / Latency** – bytes/sec and inter-arrival period per topic, self-measured by this node (no need to know each topic's message type).\n\n**Discovery Events** – one row per newly-seen DDS participant or endpoint, with how long after this bridge started it took to see it. Long tails here usually mean multicast/discovery-storm issues on a crowded `ROS_DOMAIN_ID`."
+    },
+    "Markdown!architecture": {
+      "text": "## What this is actually measuring\n\nThis fleet runs **Cyclone DDS**, whose `dds_get_statistics()` API only reports counters for entities *this process itself owns* (it's explicitly documented as a \"quick-and-dirty provisional interface\"). There's no cross-process call to read another robot's writer/reader stats directly, unlike eProsima Fast DDS's Statistics Module.\n\nSo `dds_metrics_bridge` combines three honest, verifiable sources instead of faking a single one:\n1. **DDS built-in discovery topics** (`DCPSParticipant`/`DCPSPublication`/`DCPSSubscription`) – part of the DDS spec itself, genuinely cross-process, carries real SPDP/SEDP retransmit/discard traffic for the whole fleet.\n2. **A synthetic self-probe** – a tiny reliable pub/sub pair this node owns, acting as an always-on canary for \"is DDS transport on this domain healthy right now\".\n3. **Public rclcpp/rmw APIs** (`matched_callback`, `liveliness_callback`, serialized message size) on real fleet topics – vendor-neutral, no private internals.\n\nSee the repo README's Architecture section for the full rationale."
+    }
+  },
+  "layout": {
+    "first": {
+      "first": "Plot!heartbeats",
+      "second": "Plot!retransmits",
+      "direction": "row"
+    },
+    "second": {
+      "first": {
+        "first": "Plot!throughput",
+        "second": "Plot!discovery_time",
+        "direction": "row"
+      },
+      "second": {
+        "first": "RawMessages!discovery_log",
+        "second": {
+          "first": "Markdown!how_to_read",
+          "second": "Markdown!architecture",
+          "direction": "row"
+        },
+        "direction": "row"
+      },
+      "direction": "column"
+    },
+    "direction": "column",
+    "splitPercentage": 40
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  }
+}
